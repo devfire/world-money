@@ -22,16 +22,11 @@
             padding: 5px 10px;
             border-radius: 5px;
         }
-
-        /* Style for the animated path */
         .animated-arrow-path {
             fill: none;
             stroke-width: 2;
-            /* Start invisible for fade-in */
             opacity: 0;
         }
-
-        /* Style for the transaction amount label */
         .transaction-label {
             background-color: rgba(255,255,255,0.7);
             border: 1px solid #333;
@@ -40,11 +35,10 @@
             font-weight: bold;
             font-size: 12px;
             white-space: nowrap;
-            /* Start invisible for fade-in */
             opacity: 0;
+            /* Prevent pointer events on the moving label if it gets in the way */
+            pointer-events: none;
         }
-
-        /* Style for city name labels (now temporary) */
         .city-label {
             background: none;
             border: none;
@@ -53,7 +47,6 @@
             color: #333;
             text-shadow: 1px 1px 1px white, -1px -1px 1px white, 1px -1px 1px white, -1px 1px 1px white;
             white-space: nowrap;
-            /* Start invisible for fade-in */
             opacity: 0;
         }
     </style>
@@ -67,245 +60,193 @@
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
      integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo="
      crossorigin=""></script>
-
     <script src="https://cdn.jsdelivr.net/npm/leaflet-curve@1.0.0/leaflet.curve.min.js"></script>
-
     <script src="https://cdnjs.cloudflare.com/ajax/libs/animejs/3.2.1/anime.min.js"></script>
 
     <script>
-        // --- Map Initialization ---
-        const map = L.map('map').setView([25, 0], 2); // Center view, zoom level 2
-
-        // --- Tile Layer ---
+        const map = L.map('map').setView([25, 0], 2);
         L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', {
             attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/attributions">CARTO</a>',
             subdomains: 'abcd',
             maxZoom: 20
         }).addTo(map);
 
-        // --- Simulation Data ---
         const cities = [
-            { name: "Tokyo", lat: 35.6895, lon: 139.6917 },
-            { name: "New York", lat: 40.7128, lon: -74.0060 },
-            { name: "London", lat: 51.5074, lon: -0.1278 },
-            { name: "Paris", lat: 48.8566, lon: 2.3522 },
-            { name: "Sydney", lat: -33.8688, lon: 151.2093 },
-            { name: "Rio de Janeiro", lat: -22.9068, lon: -43.1729 },
-            { name: "Moscow", lat: 55.7558, lon: 37.6173 },
-            { name: "Cairo", lat: 30.0444, lon: 31.2357 },
-            { name: "Raleigh", lat: 35.7796, lon: -78.6382 },
-            { name: "San Francisco", lat: 37.7749, lon: -122.4194 },
-            { name: "Singapore", lat: 1.3521, lon: 103.8198 },
-            { name: "Beijing", lat: 39.9042, lon: 116.4074 },
-            { name: "Buenos Aires", lat: -34.6037, lon: -58.3816 }
+             { name: "Tokyo", lat: 35.6895, lon: 139.6917 }, { name: "New York", lat: 40.7128, lon: -74.0060 },
+             { name: "London", lat: 51.5074, lon: -0.1278 }, { name: "Paris", lat: 48.8566, lon: 2.3522 },
+             { name: "Sydney", lat: -33.8688, lon: 151.2093 }, { name: "Rio de Janeiro", lat: -22.9068, lon: -43.1729 },
+             { name: "Moscow", lat: 55.7558, lon: 37.6173 }, { name: "Cairo", lat: 30.0444, lon: 31.2357 },
+             { name: "Raleigh", lat: 35.7796, lon: -78.6382 }, { name: "San Francisco", lat: 37.7749, lon: -122.4194 },
+             { name: "Singapore", lat: 1.3521, lon: 103.8198 }, { name: "Beijing", lat: 39.9042, lon: 116.4074 },
+             { name: "Buenos Aires", lat: -34.6037, lon: -58.3816 }
         ];
 
-        // Function to format currency amount
-        function formatCurrency(amount) {
-            return new Intl.NumberFormat('en-US', {
-                style: 'currency',
-                currency: 'USD',
-                minimumFractionDigits: 0,
-                maximumFractionDigits: 0
-            }).format(amount);
+        function formatCurrency(amount) { /* ... (same as before) ... */
+             return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', minimumFractionDigits: 0, maximumFractionDigits: 0 }).format(amount);
         }
-
-        // Generate a random dollar amount between min and max
-        function getRandomAmount(min = 1000, max = 10000000) {
+        function getRandomAmount(min = 1000, max = 10000000) { /* ... (same as before) ... */
             return Math.floor(min + Math.random() * (max - min));
         }
 
-        // --- Core Functions ---
         function addTransactionArrow(from, to, amount) {
             const latLng1 = L.latLng(from.lat, from.lng || from.lon);
             const latLng2 = L.latLng(to.lat, to.lng || to.lon);
             const formattedAmount = formatCurrency(amount);
 
-            // Calculate curve control point
+            // Curve calculation remains the same
             const latOffset = Math.abs(latLng1.lat - latLng2.lat) * 0.6 + 5;
             const controlLat = Math.max(latLng1.lat, latLng2.lat) + latOffset;
             let midLon = (latLng1.lng + latLng2.lng) / 2;
             const lonDiff = Math.abs(latLng1.lng - latLng2.lng);
-            if (lonDiff > 180) {
-                midLon += 180;
-                if (midLon > 180) midLon -= 360;
-                if (midLon < -180) midLon += 360;
-            }
+            if (lonDiff > 180) { midLon += 180; if (midLon > 180) midLon -= 360; if (midLon < -180) midLon += 360; }
             const controlLng = midLon;
             const controlLatLng = L.latLng(controlLat, controlLng);
+            const pathData = ['M', [latLng1.lat, latLng1.lng], 'Q', [controlLatLng.lat, controlLatLng.lng], [latLng2.lat, latLng2.lng]];
 
-            // Define path data
-            const pathData = [
-                'M', [latLng1.lat, latLng1.lng],
-                'Q', [controlLatLng.lat, controlLatLng.lng],
-                [latLng2.lat, latLng2.lng]
-            ];
-
-            // Define arrow style
+            // Style calculation remains the same
             const amountScale = Math.min(1, Math.log10(amount) / 7);
             const hue = 120 - (amountScale * 120);
             const arrowColor = `hsl(${hue}, 100%, 50%)`;
             const lineWeight = 1 + (amountScale * 4);
+            const arrowOptions = { color: arrowColor, weight: lineWeight, className: 'animated-arrow-path' };
 
-            const arrowOptions = {
-                color: arrowColor,
-                weight: lineWeight,
-                className: 'animated-arrow-path' // Class used for styling and selecting
-            };
-
-            let arrow, labelMarker, fromLabelMarker, toLabelMarker; // Declare vars outside try
+            let arrow, labelMarker, fromLabelMarker, toLabelMarker;
 
             try {
                 // --- Create Arrow ---
                 arrow = L.curve(pathData, arrowOptions).addTo(map);
 
-                // --- Create Transaction Amount Label ---
-                const tooltipLatLng = L.latLng(
-                    (latLng1.lat + latLng2.lat) / 2,
-                    (latLng1.lng + latLng2.lng) / 2
-                );
+                // --- Create Transaction Amount Label (Initially at START point) ---
                 const transactionLabelIcon = L.divIcon({
-                    className: 'transaction-label', // Class used for styling and selecting
+                    className: 'transaction-label',
                     html: `<div style="color:${arrowColor}">${formattedAmount}</div>`,
-                    iconSize: [10, 10], // Adjust as needed
-                    iconAnchor: [5, 5]  // Adjust as needed
+                    iconSize: null, // Auto-size based on content
+                    iconAnchor: [-5, 5] // Anchor slightly left and below point for better visibility
                 });
-                labelMarker = L.marker(tooltipLatLng, {
+                // *** CHANGE: Place marker initially at the START point ***
+                labelMarker = L.marker(latLng1, {
                     icon: transactionLabelIcon,
-                    zIndexOffset: 1000 // Ensure it's above lines
+                    zIndexOffset: 1000
+                    // Opacity will be handled by animation
                 }).addTo(map);
 
-                // --- Create Temporary City Name Labels (NEW) ---
-                 const cityLabelOptions = {
-                    className: 'city-label', // Class used for styling and selecting
-                    iconSize: [100, 20],
-                    iconAnchor: [50, -10] // Position label above the marker dot
-                 };
-                 const fromCityLabelIcon = L.divIcon({ ...cityLabelOptions, html: from.name });
-                 const toCityLabelIcon = L.divIcon({ ...cityLabelOptions, html: to.name });
+                // --- Create Temporary City Name Labels ---
+                const cityLabelOptions = { className: 'city-label', iconSize: [100, 20], iconAnchor: [50, -10] };
+                const fromCityLabelIcon = L.divIcon({ ...cityLabelOptions, html: from.name });
+                const toCityLabelIcon = L.divIcon({ ...cityLabelOptions, html: to.name });
+                fromLabelMarker = L.marker(latLng1, { icon: fromCityLabelIcon, zIndexOffset: 900 }).addTo(map);
+                toLabelMarker = L.marker(latLng2, { icon: toCityLabelIcon, zIndexOffset: 900 }).addTo(map);
 
-                 fromLabelMarker = L.marker(latLng1, {
-                     icon: fromCityLabelIcon,
-                     zIndexOffset: 900 // Slightly below transaction amount
-                 }).addTo(map);
-
-                 toLabelMarker = L.marker(latLng2, {
-                     icon: toCityLabelIcon,
-                     zIndexOffset: 900
-                 }).addTo(map);
-
-
-                // --- Animation with anime.js ---
+                // --- Animation Setup ---
                 const pathElement = arrow.getElement();
                 const amountLabelElement = labelMarker.getElement();
-                const fromCityLabelElement = fromLabelMarker.getElement(); // Get city label elements
+                const fromCityLabelElement = fromLabelMarker.getElement();
                 const toCityLabelElement = toLabelMarker.getElement();
 
                 if (!pathElement || !amountLabelElement || !fromCityLabelElement || !toCityLabelElement) {
-                    console.error("Could not get all elements for animation.");
-                    // Clean up elements that might have been added
-                    if (arrow && map.hasLayer(arrow)) map.removeLayer(arrow);
-                    if (labelMarker && map.hasLayer(labelMarker)) map.removeLayer(labelMarker);
-                    if (fromLabelMarker && map.hasLayer(fromLabelMarker)) map.removeLayer(fromLabelMarker);
-                    if (toLabelMarker && map.hasLayer(toLabelMarker)) map.removeLayer(toLabelMarker);
-                    return;
+                    throw new Error("Could not get all elements for animation."); // Use throw for clearer error handling
                 }
 
                 const length = pathElement.getTotalLength();
-
-                // Set up animation properties (stroke for path)
                 pathElement.style.strokeDasharray = length;
                 pathElement.style.strokeDashoffset = length;
-                // Initial opacity is set via CSS class
+                // Initial opacity is set via CSS
 
-                // Create an animation timeline
+                // Helper object to animate lat/lng for the amount label
+                let currentPosition = { lat: latLng1.lat, lng: latLng1.lng };
+
+                // --- Animation Timeline ---
+                const drawDuration = 1500; // Duration for drawing line and moving label
+                const holdDuration = 1500; // How long to pause at the end
+                const fadeDuration = 1000; // Duration for fade out
+
                 const tl = anime.timeline({
-                    easing: 'easeInOutSine',
+                    easing: 'easeInOutSine', // Default easing for the timeline
                     complete: function() {
-                         // Remove all temporary layers after all animations complete
-                        if (arrow && map.hasLayer(arrow)) map.removeLayer(arrow);
-                        if (labelMarker && map.hasLayer(labelMarker)) map.removeLayer(labelMarker);
-                        if (fromLabelMarker && map.hasLayer(fromLabelMarker)) map.removeLayer(fromLabelMarker);
-                        if (toLabelMarker && map.hasLayer(toLabelMarker)) map.removeLayer(toLabelMarker);
+                        // Cleanup all temporary layers
+                        [arrow, labelMarker, fromLabelMarker, toLabelMarker].forEach(layer => {
+                            if (layer && map.hasLayer(layer)) {
+                                map.removeLayer(layer);
+                            }
+                        });
                     }
                 });
 
-                // 1. Fade in Arrow, Amount Label, and City Labels
+                // 1. Fade In all elements (amount label appears at start)
                 tl.add({
                     targets: [pathElement, amountLabelElement, fromCityLabelElement, toCityLabelElement],
                     opacity: [0, 1],
                     duration: 500,
-                    easing: 'linear'
-                })
-                // 2. Animate drawing the line (starts slightly after fade-in begins)
-                .add({
+                    easing: 'linear' // Use linear for simple fade
+                });
+
+                // 2. Animate Arrow Drawing AND Amount Label Position Simultaneously
+                //    Use the default timeline easing ('easeInOutSine')
+                tl.add({
                     targets: pathElement,
                     strokeDashoffset: [length, 0],
-                    duration: 1500,
-                }, '-=300') // Overlap start with fade-in end
-                // 3. Hold visibility
-                .add({
+                    duration: drawDuration,
+                }, '-=300'); // Overlap start slightly with fade-in
+
+                tl.add({
+                    targets: currentPosition, // Animate the helper object
+                    lat: latLng2.lat,
+                    lng: latLng2.lng,
+                    duration: drawDuration, // Match the line drawing duration
+                    update: function() {
+                        // Update the actual marker's LatLng on each animation frame
+                        labelMarker.setLatLng([currentPosition.lat, currentPosition.lng]);
+                    }
+                }, '-=' + drawDuration); // Start label movement at the same time as line drawing
+
+
+                // 3. Hold at the end state
+                tl.add({
                     targets: pathElement, // Keep targeting something for delay
-                    opacity: 1, // No actual change, just for delay
-                    duration: 1500 // Wait 1.5 seconds (was 2000 delay before fade)
-                })
-                // 4. Fade out everything
-                .add({
+                    offset: '+=' + holdDuration // Use timeline offset for delay
+                });
+
+                // 4. Fade Out all elements (amount label fades from end position)
+                tl.add({
                     targets: [pathElement, amountLabelElement, fromCityLabelElement, toCityLabelElement],
                     opacity: [1, 0],
-                    duration: 1000,
-                    easing: 'linear'
+                    duration: fadeDuration,
+                    easing: 'linear' // Use linear for simple fade
                 });
 
             } catch (e) {
-                console.error("Animation failed:", e);
-                // Clean up elements if error occurred during creation/animation setup
-                if (arrow && map.hasLayer(arrow)) map.removeLayer(arrow);
-                if (labelMarker && map.hasLayer(labelMarker)) map.removeLayer(labelMarker);
-                if (fromLabelMarker && map.hasLayer(fromLabelMarker)) map.removeLayer(fromLabelMarker);
-                if (toLabelMarker && map.hasLayer(toLabelMarker)) map.removeLayer(toLabelMarker);
+                console.error("Transaction animation failed:", e);
+                // Attempt cleanup even if error occurred mid-setup
+                [arrow, labelMarker, fromLabelMarker, toLabelMarker].forEach(layer => {
+                     if (layer && map.hasLayer(layer)) {
+                         map.removeLayer(layer);
+                     }
+                 });
             }
         }
 
         // --- Continuous Random Transaction Generator ---
-        function simulateTransaction() {
-            // Pick two different random cities
+        function simulateTransaction() { /* ... (same as before) ... */
             let index1 = Math.floor(Math.random() * cities.length);
             let index2 = Math.floor(Math.random() * cities.length);
-            while (index1 === index2) {
-                index2 = Math.floor(Math.random() * cities.length);
-            }
-            const city1 = cities[index1];
-            const city2 = cities[index2];
-
+            while (index1 === index2) { index2 = Math.floor(Math.random() * cities.length); }
+            const city1 = cities[index1]; const city2 = cities[index2];
             if (!city1 || !city2) { console.error("Bad city data"); return; }
-
             const amount = getRandomAmount();
-
             const from = { name: city1.name, lat: city1.lat, lng: city1.lon };
             const to = { name: city2.name, lat: city2.lat, lng: city2.lon };
-
             addTransactionArrow(from, to, amount);
-
-            // Schedule next transaction
-            const nextDelay = 500 + Math.random() * 1500; // Between 0.5 and 2 seconds
+            const nextDelay = 500 + Math.random() * 1500;
             setTimeout(simulateTransaction, nextDelay);
         }
 
-        // Add PERMANENT city markers (dots only)
-        cities.forEach(city => {
-            L.circleMarker([city.lat, city.lon], {
-                radius: 4,
-                color: '#333',
-                fillColor: '#fff',
-                fillOpacity: 0.9,
-                weight: 2
-            }).addTo(map);
-            // REMOVED: Permanent city label L.marker
+        // --- Add Permanent City Markers (Dots) ---
+        cities.forEach(city => { /* ... (same as before) ... */
+            L.circleMarker([city.lat, city.lon], { radius: 4, color: '#333', fillColor: '#fff', fillOpacity: 0.9, weight: 2 }).addTo(map);
         });
 
-        // Start the continuous simulation
-        map.whenReady(() => {
+        // --- Start Simulation ---
+        map.whenReady(() => { /* ... (same as before) ... */
             setTimeout(simulateTransaction, 500);
         });
     </script>
