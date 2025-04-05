@@ -22,10 +22,15 @@
             padding: 5px 10px;
             border-radius: 5px;
         }
+        /* Default opacity 0 for elements faded in via CSS/JS */
+        .animated-arrow-path,
+        .transaction-label,
+        .city-label {
+            opacity: 0;
+        }
         .animated-arrow-path {
             fill: none;
             stroke-width: 2;
-            opacity: 0;
         }
         .transaction-label {
             background-color: rgba(255,255,255,0.7);
@@ -35,8 +40,6 @@
             font-weight: bold;
             font-size: 12px;
             white-space: nowrap;
-            opacity: 0;
-            /* Prevent pointer events on the moving label if it gets in the way */
             pointer-events: none;
         }
         .city-label {
@@ -47,7 +50,10 @@
             color: #333;
             text-shadow: 1px 1px 1px white, -1px -1px 1px white, 1px -1px 1px white, -1px 1px 1px white;
             white-space: nowrap;
-            opacity: 0;
+        }
+        /* Style for circle markers (opacity controlled by JS) */
+        .transaction-city-marker {
+            /* Base style reference if needed, but opacity set in JS */
         }
     </style>
 </head>
@@ -88,12 +94,22 @@
             return Math.floor(min + Math.random() * (max - min));
         }
 
+        // Store base options for circle markers
+        const baseCircleOptions = {
+            radius: 4,
+            color: '#333',
+            fillColor: '#fff',
+            weight: 2,
+            fillOpacity: 0.9 // Target fill opacity when visible
+            // Initial opacity (outline and fill) will be set to 0
+        };
+
         function addTransactionArrow(from, to, amount) {
             const latLng1 = L.latLng(from.lat, from.lng || from.lon);
             const latLng2 = L.latLng(to.lat, to.lng || to.lon);
             const formattedAmount = formatCurrency(amount);
 
-            // Curve calculation remains the same
+            // Curve calculation... (same as before)
             const latOffset = Math.abs(latLng1.lat - latLng2.lat) * 0.6 + 5;
             const controlLat = Math.max(latLng1.lat, latLng2.lat) + latOffset;
             let midLon = (latLng1.lng + latLng2.lng) / 2;
@@ -103,39 +119,54 @@
             const controlLatLng = L.latLng(controlLat, controlLng);
             const pathData = ['M', [latLng1.lat, latLng1.lng], 'Q', [controlLatLng.lat, controlLatLng.lng], [latLng2.lat, latLng2.lng]];
 
-            // Style calculation remains the same
+            // Style calculation... (same as before)
             const amountScale = Math.min(1, Math.log10(amount) / 7);
             const hue = 120 - (amountScale * 120);
             const arrowColor = `hsl(${hue}, 100%, 50%)`;
             const lineWeight = 1 + (amountScale * 4);
             const arrowOptions = { color: arrowColor, weight: lineWeight, className: 'animated-arrow-path' };
 
-            let arrow, labelMarker, fromLabelMarker, toLabelMarker;
+            // Declare all layer variables
+            let arrow, labelMarker, fromLabelMarker, toLabelMarker, fromCircleMarker, toCircleMarker;
 
             try {
                 // --- Create Arrow ---
                 arrow = L.curve(pathData, arrowOptions).addTo(map);
 
-                // --- Create Transaction Amount Label (Initially at START point) ---
-                const transactionLabelIcon = L.divIcon({
-                    className: 'transaction-label',
-                    html: `<div style="color:${arrowColor}">${formattedAmount}</div>`,
-                    iconSize: null, // Auto-size based on content
-                    iconAnchor: [-5, 5] // Anchor slightly left and below point for better visibility
-                });
-                // *** CHANGE: Place marker initially at the START point ***
-                labelMarker = L.marker(latLng1, {
-                    icon: transactionLabelIcon,
-                    zIndexOffset: 1000
-                    // Opacity will be handled by animation
-                }).addTo(map);
+                // --- Create Temporary Circle Markers (Initially Invisible) ---
+                 fromCircleMarker = L.circleMarker(latLng1, {
+                     ...baseCircleOptions,
+                     className: 'transaction-city-marker', // Optional class
+                     opacity: 0, // Start invisible (outline)
+                     fillOpacity: 0 // Start invisible (fill)
+                 }).addTo(map);
+                 toCircleMarker = L.circleMarker(latLng2, {
+                     ...baseCircleOptions,
+                     className: 'transaction-city-marker',
+                     opacity: 0,
+                     fillOpacity: 0
+                 }).addTo(map);
 
                 // --- Create Temporary City Name Labels ---
                 const cityLabelOptions = { className: 'city-label', iconSize: [100, 20], iconAnchor: [50, -10] };
                 const fromCityLabelIcon = L.divIcon({ ...cityLabelOptions, html: from.name });
                 const toCityLabelIcon = L.divIcon({ ...cityLabelOptions, html: to.name });
+                // Opacity controlled by CSS class 'city-label' starting at 0
                 fromLabelMarker = L.marker(latLng1, { icon: fromCityLabelIcon, zIndexOffset: 900 }).addTo(map);
                 toLabelMarker = L.marker(latLng2, { icon: toCityLabelIcon, zIndexOffset: 900 }).addTo(map);
+
+                // --- Create Transaction Amount Label (Initially at START point) ---
+                const transactionLabelIcon = L.divIcon({
+                    className: 'transaction-label',
+                    html: `<div style="color:${arrowColor}">${formattedAmount}</div>`,
+                    iconSize: null,
+                    iconAnchor: [-5, 5]
+                });
+                // Opacity controlled by CSS class 'transaction-label' starting at 0
+                labelMarker = L.marker(latLng1, {
+                    icon: transactionLabelIcon,
+                    zIndexOffset: 1000
+                }).addTo(map);
 
                 // --- Animation Setup ---
                 const pathElement = arrow.getElement();
@@ -143,28 +174,31 @@
                 const fromCityLabelElement = fromLabelMarker.getElement();
                 const toCityLabelElement = toLabelMarker.getElement();
 
+                // Check if all elements needed for CSS animation exist
                 if (!pathElement || !amountLabelElement || !fromCityLabelElement || !toCityLabelElement) {
-                    throw new Error("Could not get all elements for animation."); // Use throw for clearer error handling
+                    throw new Error("Could not get all elements for animation.");
                 }
 
                 const length = pathElement.getTotalLength();
                 pathElement.style.strokeDasharray = length;
                 pathElement.style.strokeDashoffset = length;
-                // Initial opacity is set via CSS
 
-                // Helper object to animate lat/lng for the amount label
+                // Helper object for amount label position
                 let currentPosition = { lat: latLng1.lat, lng: latLng1.lng };
 
+                 // Helper object for circle marker opacity animation
+                 let circleOpacity = { value: 0 };
+
                 // --- Animation Timeline ---
-                const drawDuration = 1500; // Duration for drawing line and moving label
-                const holdDuration = 1500; // How long to pause at the end
-                const fadeDuration = 1000; // Duration for fade out
+                const fadeDuration = 500;   // Duration for fade in/out
+                const drawDuration = 1500;  // Duration for drawing line and moving label
+                const holdDuration = 1500;  // How long to pause at the end
 
                 const tl = anime.timeline({
-                    easing: 'easeInOutSine', // Default easing for the timeline
+                    easing: 'easeInOutSine',
                     complete: function() {
                         // Cleanup all temporary layers
-                        [arrow, labelMarker, fromLabelMarker, toLabelMarker].forEach(layer => {
+                        [arrow, labelMarker, fromLabelMarker, toLabelMarker, fromCircleMarker, toCircleMarker].forEach(layer => {
                             if (layer && map.hasLayer(layer)) {
                                 map.removeLayer(layer);
                             }
@@ -172,56 +206,90 @@
                     }
                 });
 
-                // 1. Fade In all elements (amount label appears at start)
+                // 1. Fade In Elements (CSS opacity) & Circle Markers (JS opacity)
                 tl.add({
                     targets: [pathElement, amountLabelElement, fromCityLabelElement, toCityLabelElement],
-                    opacity: [0, 1],
-                    duration: 500,
-                    easing: 'linear' // Use linear for simple fade
-                });
+                    opacity: [0, 1], // CSS opacity for labels/path
+                    duration: fadeDuration,
+                    easing: 'linear'
+                })
+                .add({
+                    targets: circleOpacity, // Animate helper object
+                    value: [0, 1], // Animate value from 0 to 1
+                    duration: fadeDuration,
+                    easing: 'linear',
+                    update: function() {
+                        // Apply opacity based on the helper object's current value
+                        const currentOutlineOpacity = circleOpacity.value;
+                        // Scale the fill opacity based on the animation progress
+                        const currentFillOpacity = circleOpacity.value * baseCircleOptions.fillOpacity;
+                         [fromCircleMarker, toCircleMarker].forEach(marker => {
+                            marker.setStyle({
+                                opacity: currentOutlineOpacity,
+                                fillOpacity: currentFillOpacity
+                            });
+                         });
+                    }
+                }, '-=' + fadeDuration); // Start opacity animation at the same time
 
                 // 2. Animate Arrow Drawing AND Amount Label Position Simultaneously
-                //    Use the default timeline easing ('easeInOutSine')
                 tl.add({
                     targets: pathElement,
                     strokeDashoffset: [length, 0],
                     duration: drawDuration,
-                }, '-=300'); // Overlap start slightly with fade-in
+                    // easing uses timeline default 'easeInOutSine'
+                }, '-=' + (fadeDuration - 200)); // Start drawing slightly before fade-in completes
 
                 tl.add({
-                    targets: currentPosition, // Animate the helper object
+                    targets: currentPosition,
                     lat: latLng2.lat,
                     lng: latLng2.lng,
-                    duration: drawDuration, // Match the line drawing duration
+                    duration: drawDuration,
+                    // easing uses timeline default 'easeInOutSine'
                     update: function() {
-                        // Update the actual marker's LatLng on each animation frame
                         labelMarker.setLatLng([currentPosition.lat, currentPosition.lng]);
                     }
                 }, '-=' + drawDuration); // Start label movement at the same time as line drawing
 
-
                 // 3. Hold at the end state
                 tl.add({
                     targets: pathElement, // Keep targeting something for delay
-                    offset: '+=' + holdDuration // Use timeline offset for delay
+                    offset: '+=' + holdDuration
                 });
 
-                // 4. Fade Out all elements (amount label fades from end position)
+                // 4. Fade Out Elements (CSS opacity) & Circle Markers (JS opacity)
                 tl.add({
                     targets: [pathElement, amountLabelElement, fromCityLabelElement, toCityLabelElement],
-                    opacity: [1, 0],
+                    opacity: [1, 0], // CSS opacity
                     duration: fadeDuration,
-                    easing: 'linear' // Use linear for simple fade
-                });
+                    easing: 'linear'
+                })
+                .add({
+                    targets: circleOpacity, // Animate helper object back down
+                    value: [1, 0],
+                    duration: fadeDuration,
+                    easing: 'linear',
+                     update: function() {
+                         // Apply opacity based on the helper object's current value
+                         const currentOutlineOpacity = circleOpacity.value;
+                         const currentFillOpacity = circleOpacity.value * baseCircleOptions.fillOpacity;
+                         [fromCircleMarker, toCircleMarker].forEach(marker => {
+                             marker.setStyle({
+                                 opacity: currentOutlineOpacity,
+                                 fillOpacity: currentFillOpacity
+                             });
+                         });
+                    }
+                }, '-=' + fadeDuration); // Start opacity fade out at the same time
 
             } catch (e) {
                 console.error("Transaction animation failed:", e);
                 // Attempt cleanup even if error occurred mid-setup
-                [arrow, labelMarker, fromLabelMarker, toLabelMarker].forEach(layer => {
-                     if (layer && map.hasLayer(layer)) {
-                         map.removeLayer(layer);
-                     }
-                 });
+                 [arrow, labelMarker, fromLabelMarker, toLabelMarker, fromCircleMarker, toCircleMarker].forEach(layer => {
+                    if (layer && map.hasLayer(layer)) {
+                        map.removeLayer(layer);
+                    }
+                });
             }
         }
 
@@ -241,12 +309,13 @@
         }
 
         // --- Add Permanent City Markers (Dots) ---
-        cities.forEach(city => { /* ... (same as before) ... */
-            L.circleMarker([city.lat, city.lon], { radius: 4, color: '#333', fillColor: '#fff', fillOpacity: 0.9, weight: 2 }).addTo(map);
-        });
+        // REMOVED - Markers are now created dynamically per transaction
+        // cities.forEach(city => {
+        //     L.circleMarker([city.lat, city.lon], { ... }).addTo(map);
+        // });
 
         // --- Start Simulation ---
-        map.whenReady(() => { /* ... (same as before) ... */
+        map.whenReady(() => {
             setTimeout(simulateTransaction, 500);
         });
     </script>
